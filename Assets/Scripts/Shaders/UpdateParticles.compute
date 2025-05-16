@@ -1,0 +1,94 @@
+#pragma kernel SolveCollisions
+#pragma kernel ApplyGravity
+
+struct Particle {
+    float2 position;
+    float2 velocity;
+};
+
+StructuredBuffer<Particle> _ReadParticles;
+RWStructuredBuffer<Particle> _WriteParticles;
+
+float deltaTime;
+float radius;
+float dampingFactor;
+float penetrationFactor;
+float2 bounds;
+
+[numthreads(64, 1, 1)]
+void SolveCollisions (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ReadParticles.Length) return;
+
+    Particle p = _ReadParticles[i];
+
+    // Collision with bounds
+    if (p.position.x < -bounds.x + radius) {
+        p.position.x = -bounds.x + radius;
+        p.velocity.x = -p.velocity.x * dampingFactor;
+    }
+    if (p.position.x > bounds.x - radius) {
+        p.position.x = bounds.x - radius;
+        p.velocity.x = -p.velocity.x * dampingFactor;
+    }
+    if (p.position.y < -bounds.y + radius) {
+        p.position.y = -bounds.y + radius;
+        p.velocity.y = -p.velocity.y * dampingFactor;
+    }
+    if (p.position.y > bounds.y - radius) {
+        p.position.y = bounds.y - radius;
+        p.velocity.y = -p.velocity.y * dampingFactor;
+    }
+
+    // Collision with other particles
+    for (uint j = 0; j < _ReadParticles.Length; j++) {
+        if (i == j) continue;
+
+        Particle q = _ReadParticles[j];
+
+        float2 delta = p.position - q.position;
+        float dist = length(delta);
+        float minDist = 2.0 * radius;
+
+        if (dist < minDist && dist > 0.0001) {
+            float2 normal = delta / dist;
+            float2 relVel = p.velocity - q.velocity;
+
+            // Only resolve if particles are moving toward each other
+            if (dot(relVel, normal) < 0) {
+                float2 impulse = normal * dot(-relVel, normal) / 2.0;
+                p.velocity += impulse;
+
+                // Damping only the normal component of the velocity
+                float2 normalVel = dot(p.velocity, normal) * normal;
+                float2 tangentialVel = p.velocity - normalVel;
+                normalVel *= dampingFactor;
+                p.velocity = normalVel + tangentialVel;
+                
+            }
+            // Separation
+            float penetration = minDist - dist;
+            p.position += penetrationFactor * normal * penetration;
+        }
+    }
+    
+    _WriteParticles[i] = p;
+}
+
+
+float2 gravity;
+
+[numthreads(64, 1, 1)]
+void ApplyGravity (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ReadParticles.Length) return;
+
+    Particle p = _ReadParticles[i];
+
+    p.velocity += gravity * deltaTime;
+    p.position += p.velocity * deltaTime;
+
+    _WriteParticles[i] = p;
+}
