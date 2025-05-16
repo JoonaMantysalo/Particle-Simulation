@@ -27,6 +27,8 @@ public class SimulationController : MonoBehaviour
     private int gravityKernel;
     private Vector2 gravity;
     private float dampingFactor;
+    private float delayTimer;
+    private bool isSimulating = false;
 
     void Start()
     {
@@ -41,6 +43,7 @@ public class SimulationController : MonoBehaviour
 
         gravity = new float2(0f, -9.81f);
         dampingFactor = 0.98f;
+        delayTimer = 0.5f;
 
         Particle[] particles = new Particle[particleCount];
         for (int i = 0; i < particleCount; i++)
@@ -62,6 +65,17 @@ public class SimulationController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Pause simulation for a bit before starting
+        if (!isSimulating)
+        {
+            delayTimer -= Time.fixedDeltaTime;
+            if (delayTimer <= 0f)
+            {
+                isSimulating = true;
+            }
+            return;
+        }
+
         physicsShader.SetFloat("deltaTime", Time.fixedDeltaTime);
         physicsShader.SetFloat("radius", radius);
         physicsShader.SetVector("gravity", gravity);
