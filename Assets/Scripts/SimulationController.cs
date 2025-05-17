@@ -8,23 +8,23 @@ using Unity.Mathematics;
 [StructLayout(LayoutKind.Sequential, Size = 16)]
 public class SimulationController : MonoBehaviour
 {
-    struct Particle
-    {
-        public Vector2 position;       // 8 bytes
-        public Vector2 velocity;       // 16 bytes
-    }
-
     public int particleCount;
     public float radius;
+    [Range(0, 1)]
     public float penetrationFactor;
+    [Range(1, 100)]
+    public int iterations;
     public ComputeShader physicsShader;
     public Material material;
     public Vector2 containerBounds;
+
     private Mesh circleMesh;
     private ComputeBuffer particlesBufferRead;
     private ComputeBuffer particlesBufferWrite;
+    private ComputeBuffer obstacleBuffer;
     private int solveCollisionsKernel;
     private int gravityKernel;
+    private Obstacle[] obstacles;
     private Vector2 gravity;
     private float dampingFactor;
     private float delayTimer;
@@ -43,9 +43,26 @@ public class SimulationController : MonoBehaviour
 
         gravity = new float2(0f, -9.81f);
         dampingFactor = 0.98f;
-        delayTimer = 0.5f;
+        delayTimer = 1f;
 
         Particle[] particles = new Particle[particleCount];
+        SpawnParticles(particles);
+
+        particlesBufferRead.SetData(particles);
+        particlesBufferWrite.SetData(particles);
+
+        SetObstacles();
+        obstacleBuffer = new ComputeBuffer(obstacles.Length, Marshal.SizeOf(typeof(Obstacle)));
+        obstacleBuffer.SetData(obstacles);
+
+        physicsShader.SetBuffer(solveCollisionsKernel, "_Obstacles", obstacleBuffer);
+        physicsShader.SetInt("obstacleCount", obstacles.Length);
+
+        material.SetBuffer("_Particles", particlesBufferRead);
+    }
+
+    void SpawnParticles(Particle[] particles)
+    {
         for (int i = 0; i < particleCount; i++)
         {
             particles[i] = new Particle
@@ -55,12 +72,17 @@ public class SimulationController : MonoBehaviour
                 velocity = Vector2.zero,
             };
         }
+    }
 
+    void SetObstacles()
+    {
+        var sceneObstacles = FindObjectsOfType<ParticleObstacle>();
+        obstacles = new Obstacle[sceneObstacles.Length];
 
-        particlesBufferRead.SetData(particles);
-        particlesBufferWrite.SetData(particles);
-
-        material.SetBuffer("_Particles", particlesBufferRead);
+        for (int i = 0; i < sceneObstacles.Length; i++)
+        {
+            obstacles[i] = sceneObstacles[i].ToObstacle();
+        }
     }
 
     void FixedUpdate()
@@ -96,7 +118,6 @@ public class SimulationController : MonoBehaviour
         particlesBufferWrite = tempFinal;
 
         // Solve collisions
-        int iterations = 30;
         for (int i = 0; i < iterations; i++)
         {
             physicsShader.SetBuffer(solveCollisionsKernel, "_ReadParticles", particlesBufferRead);
@@ -125,6 +146,7 @@ public class SimulationController : MonoBehaviour
     {
         particlesBufferRead.Release();
         particlesBufferWrite.Release();
+        obstacleBuffer.Release();
     }
 
     void OnDrawGizmos()

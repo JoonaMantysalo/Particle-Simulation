@@ -5,15 +5,23 @@ struct Particle {
     float2 position;
     float2 velocity;
 };
+struct Obstacle {
+    int type;
+    float2 position;
+    float2 size;
+    float2x2 rotation;
+};
 
 StructuredBuffer<Particle> _ReadParticles;
 RWStructuredBuffer<Particle> _WriteParticles;
+StructuredBuffer<Obstacle> _Obstacles;
 
 float deltaTime;
 float radius;
 float dampingFactor;
 float penetrationFactor;
 float2 bounds;
+int obstacleCount;
 
 [numthreads(64, 1, 1)]
 void SolveCollisions (uint3 id : SV_DispatchThreadID)
@@ -70,6 +78,58 @@ void SolveCollisions (uint3 id : SV_DispatchThreadID)
             // Separation
             float penetration = minDist - dist;
             p.position += penetrationFactor * normal * penetration;
+        }
+    }
+
+    // Collision with obstacles
+    for (int k = 0; k < obstacleCount; k++) {
+        Obstacle obs = _Obstacles[k];
+
+        if (obs.type == 0) {
+            // Circle obstacle
+            float2 delta = p.position - obs.position;
+            float dist = length(delta);
+            float combinedRadius = radius + obs.size.x;
+
+            if (dist < combinedRadius && dist > 0.001) {
+                float2 normal = delta / dist;
+                float penetration = combinedRadius - dist;
+                p.position += normal * penetration;
+                p.velocity -= dot(p.velocity, normal) * normal;
+                p.velocity *= dampingFactor;
+            }
+        }
+        else if (obs.type == 1) {
+            // Rectangle obstacle
+
+            // Translate into obstacle local space
+            float2 rel = p.position - obs.position;
+
+            // Rotate into local (object) space using transpose
+            float2x2 rotT = float2x2(
+                obs.rotation[0].x, obs.rotation[1].x,
+                obs.rotation[0].y, obs.rotation[1].y
+            );
+
+            float2 localPos = mul(rotT, rel);
+
+            // Closest point in box
+            float2 clamped = clamp(localPos, -obs.size, obs.size);
+
+            float2 localDelta = localPos - clamped;
+            float dist = length(localDelta);
+
+            if (dist < radius && dist > 0.001) {
+                float2 normalLocal = localDelta / dist;
+
+                // Rotate normal back to world
+                float2 normalWorld = mul(obs.rotation, normalLocal);
+
+                float penetration = radius - dist;
+                p.position += normalWorld * penetration;
+                p.velocity -= dot(p.velocity, normalWorld) * normalWorld;
+                p.velocity *= dampingFactor;
+            }
         }
     }
     
