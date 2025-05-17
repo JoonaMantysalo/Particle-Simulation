@@ -137,7 +137,7 @@ void SolveCollisions (uint3 id : SV_DispatchThreadID)
 }
 
 
-float2 gravity;
+float gravity;
 
 [numthreads(64, 1, 1)]
 void ApplyGravity (uint3 id : SV_DispatchThreadID)
@@ -147,7 +147,7 @@ void ApplyGravity (uint3 id : SV_DispatchThreadID)
 
     Particle p = _ReadParticles[i];
 
-    p.velocity += gravity * deltaTime;
+    p.velocity.y += gravity * deltaTime;
     p.position += p.velocity * deltaTime;
 
     _WriteParticles[i] = p;

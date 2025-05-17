@@ -8,81 +8,104 @@ using Unity.Mathematics;
 [StructLayout(LayoutKind.Sequential, Size = 16)]
 public class SimulationController : MonoBehaviour
 {
-    public int particleCount;
-    public float radius;
-    [Range(0, 1)]
-    public float penetrationFactor;
-    [Range(1, 100)]
-    public int iterations;
+    [Header("Simulation Parameters")]
+    public int particleCount = 1000;
+    public float radius = 0.1f;
+    [Range(1, 100)] public int iterations = 10;
+    public float startPauseTime = 1f;
+    public Vector2 containerBounds = new Vector2(5, 5);
+
+    [Header("Physics Settings")]
     public ComputeShader physicsShader;
     public Material material;
-    public Vector2 containerBounds;
+    [Range(0f, 1f)] public float penetrationFactor = 0.3f;
+    public float dampingFactor = 0.98f;
+    public float gravity = -9.81f;
 
     private Mesh circleMesh;
     private ComputeBuffer particlesBufferRead;
     private ComputeBuffer particlesBufferWrite;
     private ComputeBuffer obstacleBuffer;
-    private int solveCollisionsKernel;
+
     private int gravityKernel;
+    private int solveCollisionsKernel;
+
     private Obstacle[] obstacles;
-    private Vector2 gravity;
-    private float dampingFactor;
-    private float delayTimer;
     private bool isSimulating = false;
 
     void Start()
     {
-        circleMesh = CircleMeshGenerator.CreateCircleMesh(radius, 32);
+        InitializeKernels();
+        InitializeMesh();
+        InitializeBuffers();
+        InitializeParticles();
+        InitializeObstacles();
+        UploadConstantsToShader();
+    }
 
+    void InitializeKernels()
+    {
+        solveCollisionsKernel = physicsShader.FindKernel("SolveCollisions");
+        gravityKernel = physicsShader.FindKernel("ApplyGravity");
+    }
+
+    void InitializeMesh()
+    {
+        circleMesh = CircleMeshGenerator.CreateCircleMesh(radius, 32);
+    }
+
+    void InitializeBuffers()
+    {
         int stride = Marshal.SizeOf(typeof(Particle));
         particlesBufferRead = new ComputeBuffer(particleCount, stride);
         particlesBufferWrite = new ComputeBuffer(particleCount, stride);
-
-        solveCollisionsKernel = physicsShader.FindKernel("SolveCollisions");
-        gravityKernel = physicsShader.FindKernel("ApplyGravity");
-
-        gravity = new float2(0f, -9.81f);
-        dampingFactor = 0.98f;
-        delayTimer = 1f;
-
-        Particle[] particles = new Particle[particleCount];
-        SpawnParticles(particles);
-
-        particlesBufferRead.SetData(particles);
-        particlesBufferWrite.SetData(particles);
-
-        SetObstacles();
-        obstacleBuffer = new ComputeBuffer(obstacles.Length, Marshal.SizeOf(typeof(Obstacle)));
-        obstacleBuffer.SetData(obstacles);
-
-        physicsShader.SetBuffer(solveCollisionsKernel, "_Obstacles", obstacleBuffer);
-        physicsShader.SetInt("obstacleCount", obstacles.Length);
-
         material.SetBuffer("_Particles", particlesBufferRead);
     }
 
-    void SpawnParticles(Particle[] particles)
+    void InitializeParticles()
     {
+        Particle[] particles = new Particle[particleCount];
         for (int i = 0; i < particleCount; i++)
         {
             particles[i] = new Particle
             {
-                position = new Vector2(UnityEngine.Random.Range(-containerBounds.x + radius, containerBounds.x - radius),
-                UnityEngine.Random.Range(-containerBounds.y + radius, containerBounds.y - radius)),
+                position = new Vector2(
+                    UnityEngine.Random.Range(-containerBounds.x + radius, containerBounds.x - radius),
+                    UnityEngine.Random.Range(-containerBounds.y + radius, containerBounds.y - radius)
+                ),
                 velocity = Vector2.zero,
             };
         }
+
+        particlesBufferRead.SetData(particles);
+        particlesBufferWrite.SetData(particles);
     }
 
-    void SetObstacles()
+    void InitializeObstacles()
     {
         var sceneObstacles = FindObjectsOfType<ParticleObstacle>();
-        obstacles = new Obstacle[sceneObstacles.Length];
+        Obstacle[] obstacles = new Obstacle[sceneObstacles.Length];
 
         for (int i = 0; i < sceneObstacles.Length; i++)
         {
             obstacles[i] = sceneObstacles[i].ToObstacle();
         }
+
+        obstacleBuffer = new ComputeBuffer(obstacles.Length, Marshal.SizeOf(typeof(Obstacle)));
+        obstacleBuffer.SetData(obstacles);
+
+        physicsShader.SetBuffer(solveCollisionsKernel, "_Obstacles", obstacleBuffer);
+        physicsShader.SetInt("obstacleCount", obstacles.Length);
+    }
+
+    void UploadConstantsToShader()
+    {
+        physicsShader.SetFloat("deltaTime", Time.fixedDeltaTime);
+        physicsShader.SetFloat("radius", radius);
+        physicsShader.SetFloat("penetrationFactor", penetrationFactor);
+        physicsShader.SetFloat("dampingFactor", dampingFactor);
+        physicsShader.SetFloat("gravity", gravity);
+        physicsShader.SetVector("bounds", containerBounds);
     }
 
     void FixedUpdate()
@@ -90,20 +113,13 @@ public class SimulationController : MonoBehaviour
         // Pause simulation for a bit before starting
         if (!isSimulating)
         {
-            delayTimer -= Time.fixedDeltaTime;
-            if (delayTimer <= 0f)
+            startPauseTime -= Time.fixedDeltaTime;
+            if (startPauseTime <= 0f)
             {
                 isSimulating = true;
             }
             return;
         }
-
-        physicsShader.SetFloat("deltaTime", Time.fixedDeltaTime);
-        physicsShader.SetFloat("radius", radius);
-        physicsShader.SetVector("gravity", gravity);
-        physicsShader.SetFloat("dampingFactor", dampingFactor);
-        physicsShader.SetFloat("penetrationFactor", penetrationFactor);
-        physicsShader.SetVector("bounds", containerBounds);
 
         // Calculate thread groups
         int threadGroups = Mathf.CeilToInt(particleCount / 64f);
