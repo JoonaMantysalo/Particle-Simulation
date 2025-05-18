@@ -31,6 +31,7 @@ Shader "Custom/ParticleShader"
 
             struct Particle {
                 float2 position;
+                float2 previousPosition;
                 float2 velocity;
             };
 

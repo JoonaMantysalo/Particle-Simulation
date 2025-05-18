@@ -3,6 +3,7 @@
 
 struct Particle {
     float2 position;
+    float2 previousPosition;
     float2 velocity;
 };
 struct Obstacle {
@@ -23,15 +24,8 @@ float penetrationFactor;
 float2 bounds;
 int obstacleCount;
 
-[numthreads(64, 1, 1)]
-void SolveCollisions (uint3 id : SV_DispatchThreadID)
+void HandleBoundsCollision(inout Particle p)
 {
-    uint i = id.x;
-    if (i >= _ReadParticles.Length) return;
-
-    Particle p = _ReadParticles[i];
-
-    // Collision with bounds
     if (p.position.x < -bounds.x + radius) {
         p.position.x = -bounds.x + radius;
         p.velocity.x = -p.velocity.x * dampingFactor;
@@ -48,13 +42,14 @@ void SolveCollisions (uint3 id : SV_DispatchThreadID)
         p.position.y = bounds.y - radius;
         p.velocity.y = -p.velocity.y * dampingFactor;
     }
+}
 
-    // Collision with other particles
+void HandleParticleCollisions(inout Particle p, uint i)
+{
     for (uint j = 0; j < _ReadParticles.Length; j++) {
         if (i == j) continue;
 
         Particle q = _ReadParticles[j];
-
         float2 delta = p.position - q.position;
         float dist = length(delta);
         float minDist = 2.0 * radius;
@@ -63,30 +58,29 @@ void SolveCollisions (uint3 id : SV_DispatchThreadID)
             float2 normal = delta / dist;
             float2 relVel = p.velocity - q.velocity;
 
-            // Only resolve if particles are moving toward each other
             if (dot(relVel, normal) < 0) {
                 float2 impulse = normal * dot(-relVel, normal) / 2.0;
                 p.velocity += impulse;
 
-                // Damping only the normal component of the velocity
                 float2 normalVel = dot(p.velocity, normal) * normal;
                 float2 tangentialVel = p.velocity - normalVel;
                 normalVel *= dampingFactor;
                 p.velocity = normalVel + tangentialVel;
-                
             }
-            // Separation
+
             float penetration = minDist - dist;
             p.position += penetrationFactor * normal * penetration;
         }
     }
+}
 
-    // Collision with obstacles
+void HandleObstacleCollisions(inout Particle p)
+{
     for (int k = 0; k < obstacleCount; k++) {
         Obstacle obs = _Obstacles[k];
 
         if (obs.type == 0) {
-            // Circle obstacle
+            // Circle
             float2 delta = p.position - obs.position;
             float dist = length(delta);
             float combinedRadius = radius + obs.size.x;
@@ -94,48 +88,55 @@ void SolveCollisions (uint3 id : SV_DispatchThreadID)
             if (dist < combinedRadius && dist > 0.001) {
                 float2 normal = delta / dist;
                 float penetration = combinedRadius - dist;
-                p.position += normal * penetration;
-                p.velocity -= dot(p.velocity, normal) * normal;
-                p.velocity *= dampingFactor;
+                p.position += normal * (penetration + 1e-4);
+
+                float2 normalVel = dot(p.velocity, normal) * normal;
+                float2 tangentialVel = p.velocity - normalVel;
+                normalVel *= -dampingFactor;
+                p.velocity = normalVel + tangentialVel;
             }
         }
         else if (obs.type == 1) {
-            // Rectangle obstacle
-
-            // Translate into obstacle local space
-            float2 rel = p.position - obs.position;
-
-            // Rotate into local (object) space using transpose
+            // Rectangle
             float2x2 rotT = float2x2(
                 obs.rotation[0].x, obs.rotation[1].x,
                 obs.rotation[0].y, obs.rotation[1].y
             );
 
-            float2 localPos = mul(rotT, rel);
-
-            // Closest point in box
+            float2 localPos = mul(rotT, p.position - obs.position);
             float2 clamped = clamp(localPos, -obs.size, obs.size);
-
-            float2 localDelta = localPos - clamped;
-            float dist = length(localDelta);
+            float2 delta = localPos - clamped;
+            float dist = length(delta);
 
             if (dist < radius && dist > 0.001) {
-                float2 normalLocal = localDelta / dist;
-
-                // Rotate normal back to world
+                float2 normalLocal = delta / dist;
                 float2 normalWorld = mul(obs.rotation, normalLocal);
-
                 float penetration = radius - dist;
-                p.position += normalWorld * penetration;
-                p.velocity -= dot(p.velocity, normalWorld) * normalWorld;
-                p.velocity *= dampingFactor;
+                p.position += normalWorld * (penetration + 1e-4);
+
+                float2 normalVel = dot(p.velocity, normalWorld) * normalWorld;
+                float2 tangentialVel = p.velocity - normalVel;
+                normalVel *= -dampingFactor;
+                p.velocity = normalVel + tangentialVel;
             }
         }
     }
-    
-    _WriteParticles[i] = p;
 }
 
+[numthreads(64, 1, 1)]
+void SolveCollisions(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ReadParticles.Length) return;
+
+    Particle p = _ReadParticles[i];
+    
+    HandleBoundsCollision(p);
+    HandleObstacleCollisions(p);
+    HandleParticleCollisions(p, i);
+
+    _WriteParticles[i] = p;
+}
 
 float gravity;
 

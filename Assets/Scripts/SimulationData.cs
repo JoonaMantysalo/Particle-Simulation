@@ -4,7 +4,8 @@ using System.Runtime.InteropServices;
 public struct Particle
 {
     public Vector2 position;       // 8 bytes
-    public Vector2 velocity;       // 16 bytes
+    public Vector2 previousPosition; // 16 bytes
+    public Vector2 velocity;       // 24 bytes
 }
 
 [StructLayout(LayoutKind.Sequential)]

@@ -2,14 +2,15 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 
 [System.Serializable]
-[StructLayout(LayoutKind.Sequential, Size = 16)]
+[StructLayout(LayoutKind.Sequential, Size = 24)]
 public class SimulationController : MonoBehaviour
 {
     public ParticleSpawnSettings spawnSettings;
     [Header("Simulation Parameters")]
     public int particleCount = 1000;
     public float radius = 0.1f;
-    [Range(1, 100)] public int iterations = 10;
+    public int substeps = 4;
+    public int iterations = 30;
     public float startPauseTime = 1f;
     public Vector2 containerBounds = new Vector2(5, 5);
 
@@ -123,6 +124,8 @@ public class SimulationController : MonoBehaviour
         physicsShader.SetVector("bounds", containerBounds);
     }
 
+
+
     void FixedUpdate()
     {
         // Pause simulation for a bit before starting
@@ -139,27 +142,34 @@ public class SimulationController : MonoBehaviour
         // Calculate thread groups
         int threadGroups = Mathf.CeilToInt(particleCount / 64f);
 
-        // Gravity
-        physicsShader.SetBuffer(gravityKernel, "_ReadParticles", particlesBufferRead);
-        physicsShader.SetBuffer(gravityKernel, "_WriteParticles", particlesBufferWrite);
-        physicsShader.Dispatch(gravityKernel, threadGroups, 1, 1);
+        float subDelta = Time.fixedDeltaTime / substeps;
 
-        var tempFinal = particlesBufferRead;
-        particlesBufferRead = particlesBufferWrite;
-        particlesBufferWrite = tempFinal;
+        physicsShader.SetFloat("deltaTime", subDelta);
 
-        // Solve collisions
-        for (int i = 0; i < iterations; i++)
+        for (int s = 0; s < substeps; s++)
         {
-            physicsShader.SetBuffer(solveCollisionsKernel, "_ReadParticles", particlesBufferRead);
-            physicsShader.SetBuffer(solveCollisionsKernel, "_WriteParticles", particlesBufferWrite);
+            // Apply gravity
+            physicsShader.SetBuffer(gravityKernel, "_ReadParticles", particlesBufferRead);
+            physicsShader.SetBuffer(gravityKernel, "_WriteParticles", particlesBufferWrite);
+            physicsShader.Dispatch(gravityKernel, threadGroups, 1, 1);
+            SwapBuffers();
 
-            physicsShader.Dispatch(solveCollisionsKernel, threadGroups, 1, 1);
-
-            var temp = particlesBufferRead;
-            particlesBufferRead = particlesBufferWrite;
-            particlesBufferWrite = temp;
+            // Solve collisions
+            for (int i = 0; i < iterations; i++)
+            {
+                physicsShader.SetBuffer(solveCollisionsKernel, "_ReadParticles", particlesBufferRead);
+                physicsShader.SetBuffer(solveCollisionsKernel, "_WriteParticles", particlesBufferWrite);
+                physicsShader.Dispatch(solveCollisionsKernel, threadGroups, 1, 1);
+                SwapBuffers();
+            }
         }
+    }
+
+    void SwapBuffers()
+    {
+        var temp = particlesBufferRead;
+        particlesBufferRead = particlesBufferWrite;
+        particlesBufferWrite = temp;
     }
 
     void Update()
