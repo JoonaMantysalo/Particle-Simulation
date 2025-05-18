@@ -1,13 +1,11 @@
 using System.Runtime.InteropServices;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using Unity.Mathematics;
 
 [System.Serializable]
 [StructLayout(LayoutKind.Sequential, Size = 16)]
 public class SimulationController : MonoBehaviour
 {
+    public ParticleSpawnSettings spawnSettings;
     [Header("Simulation Parameters")]
     public int particleCount = 1000;
     public float radius = 0.1f;
@@ -65,16 +63,33 @@ public class SimulationController : MonoBehaviour
     void InitializeParticles()
     {
         Particle[] particles = new Particle[particleCount];
-        for (int i = 0; i < particleCount; i++)
+
+        IParticleSpawner spawner = spawnSettings.spawnType switch
         {
-            particles[i] = new Particle
-            {
-                position = new Vector2(
-                    UnityEngine.Random.Range(-containerBounds.x + radius, containerBounds.x - radius),
-                    UnityEngine.Random.Range(-containerBounds.y + radius, containerBounds.y - radius)
-                ),
-                velocity = Vector2.zero,
-            };
+            SpawnType.Rectangle => new RectangleSpawner(),
+            // SpawnType.Circle => new CircleSpawner(),
+            // SpawnType.OneByOne => new OneByOneSpawner(),
+            // SpawnType.Batch => new BatchSpawner(),
+            _ => throw new System.NotImplementedException()
+        };
+
+        spawner.Initialize(particleCount, radius, spawnSettings.spawnAreaSize, spawnSettings.spawnAreaCenter);
+
+        if (spawner is IBatchParticleSpawner batch)
+        {
+            particles = batch.GenerateParticles();
+        }
+        else if (spawner is IIncrementalParticleSpawner incremental)
+        {
+            // StartCoroutine(incremental.SpawnParticlesOverTime((p, i) =>
+            // {
+            //     particles[i] = p;
+            // }));
+        }
+        else
+        {
+            Debug.LogError("Invalid spawner type");
+            return;
         }
 
         particlesBufferRead.SetData(particles);

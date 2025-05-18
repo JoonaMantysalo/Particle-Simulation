@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Runtime.InteropServices;
 
-struct Particle
+public struct Particle
 {
     public Vector2 position;       // 8 bytes
     public Vector2 velocity;       // 16 bytes
