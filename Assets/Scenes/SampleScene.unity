@@ -214,7 +214,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 79518826}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.31, y: -0.85, z: 8.86815}
+  m_LocalPosition: {x: -0.77, y: -3.04, z: 8.86815}
   m_LocalScale: {x: 1.5899999, y: 1.5899999, z: 1.5899999}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -366,7 +366,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1180754097}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.23, y: -2.58, z: 8.86815}
+  m_LocalPosition: {x: 2.95, y: -3.31, z: 8.86815}
   m_LocalScale: {x: 2.77558, y: 0.24737999, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -464,7 +464,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1570935933}
   m_LocalRotation: {x: 0, y: 0, z: -0.28033167, w: 0.95990324}
-  m_LocalPosition: {x: -3.43, y: -0.29, z: 8.86815}
+  m_LocalPosition: {x: -3.32, y: -2.33, z: 8.86815}
   m_LocalScale: {x: 2.77558, y: 0.17733824, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -562,7 +562,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1622551455}
   m_LocalRotation: {x: 0, y: 0, z: 0.08837271, w: 0.9960875}
-  m_LocalPosition: {x: 2.44, y: -1.39, z: 8.86815}
+  m_LocalPosition: {x: 2.02, y: -1.67, z: 8.86815}
   m_LocalScale: {x: 2.77558, y: 0.17733824, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -664,16 +664,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   spawnSettings: {fileID: 11400000, guid: 450bd8d4097d0ee4691b09ae57ef7240, type: 2}
-  particleCount: 1000
   radius: 0.1
-  substeps: 4
-  iterations: 10
+  substeps: 6
+  iterations: 20
   startPauseTime: 1
   containerBounds: {x: 5, y: 5}
   physicsShader: {fileID: 7200000, guid: 03e12ffc668618949b8dab9391e5bf1b, type: 3}
   material: {fileID: 2100000, guid: 697c2cb61b4c02743b719223392c2d22, type: 2}
   penetrationFactor: 0.2
-  dampingFactor: 0.99
+  dampingFactor: 0.8
   gravity: -9.81
 --- !u!4 &2101254302
 Transform:

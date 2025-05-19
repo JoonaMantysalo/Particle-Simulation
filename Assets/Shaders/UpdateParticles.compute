@@ -3,7 +3,6 @@
 
 struct Particle {
     float2 position;
-    float2 previousPosition;
     float2 velocity;
 };
 struct Obstacle {
@@ -59,7 +58,7 @@ void HandleParticleCollisions(inout Particle p, uint i)
             float2 relVel = p.velocity - q.velocity;
 
             if (dot(relVel, normal) < 0) {
-                float2 impulse = normal * dot(-relVel, normal) / 2.0;
+                float2 impulse = normal * dot(-relVel, normal);
                 p.velocity += impulse;
 
                 float2 normalVel = dot(p.velocity, normal) * normal;
@@ -69,10 +68,11 @@ void HandleParticleCollisions(inout Particle p, uint i)
             }
 
             float penetration = minDist - dist;
-            p.position += penetrationFactor * normal * penetration;
+            p.position += 0.5 * penetrationFactor * normal * penetration;
         }
     }
 }
+
 
 void HandleObstacleCollisions(inout Particle p)
 {

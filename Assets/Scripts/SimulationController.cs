@@ -2,12 +2,11 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 
 [System.Serializable]
-[StructLayout(LayoutKind.Sequential, Size = 24)]
+[StructLayout(LayoutKind.Sequential, Size = 16)]
 public class SimulationController : MonoBehaviour
 {
     public ParticleSpawnSettings spawnSettings;
     [Header("Simulation Parameters")]
-    public int particleCount = 1000;
     public float radius = 0.1f;
     public int substeps = 4;
     public int iterations = 30;
@@ -56,14 +55,14 @@ public class SimulationController : MonoBehaviour
     void InitializeBuffers()
     {
         int stride = Marshal.SizeOf(typeof(Particle));
-        particlesBufferRead = new ComputeBuffer(particleCount, stride);
-        particlesBufferWrite = new ComputeBuffer(particleCount, stride);
+        particlesBufferRead = new ComputeBuffer(spawnSettings.particleCount, stride);
+        particlesBufferWrite = new ComputeBuffer(spawnSettings.particleCount, stride);
         material.SetBuffer("_Particles", particlesBufferRead);
     }
 
     void InitializeParticles()
     {
-        Particle[] particles = new Particle[particleCount];
+        Particle[] particles = new Particle[spawnSettings.particleCount];
 
         IParticleSpawner spawner = spawnSettings.spawnType switch
         {
@@ -74,7 +73,7 @@ public class SimulationController : MonoBehaviour
             _ => throw new System.NotImplementedException()
         };
 
-        spawner.Initialize(particleCount, radius, spawnSettings.spawnAreaSize, spawnSettings.spawnAreaCenter);
+        spawner.Initialize(spawnSettings.particleCount, radius, spawnSettings.spawnAreaSize, spawnSettings.spawnAreaCenter);
 
         if (spawner is IBatchParticleSpawner batch)
         {
@@ -140,7 +139,7 @@ public class SimulationController : MonoBehaviour
         }
 
         // Calculate thread groups
-        int threadGroups = Mathf.CeilToInt(particleCount / 64f);
+        int threadGroups = Mathf.CeilToInt(spawnSettings.particleCount / 64f);
 
         float subDelta = Time.fixedDeltaTime / substeps;
 
@@ -179,7 +178,7 @@ public class SimulationController : MonoBehaviour
             0,
             material,
             circleMesh.bounds,
-            particleCount
+            spawnSettings.particleCount
         );
     }
 
