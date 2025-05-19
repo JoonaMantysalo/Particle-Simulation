@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a183bb522a9bd34890c2b129e2befe8, type: 3}
   m_Name: ParticleSpawnSettings
   m_EditorClassIdentifier: 
-  particleCount: 1000
-  spawnAreaCenter: {x: 0, y: 2}
-  spawnAreaSize: {x: 4, y: 3}
+  particleCount: 100
+  spawnAreaCenter: {x: 0, y: 1.5}
+  spawnAreaSize: {x: 1.5, y: 1.5}
   spawnType: 0
   spawnInterval: 0.05
